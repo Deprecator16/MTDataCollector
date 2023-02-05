@@ -10,7 +10,8 @@
 			"LoadingPhase": "Default",
 			"AdditionalDependencies": [
 				"Engine",
-				"DeveloperSettings"
+				"DeveloperSettings",
+				"NeuralNetworkInference"
 			]
 		}
 	],
@@ -30,6 +31,14 @@
 				"Mac",
 				"Linux"
 			]
+		},
+		{
+			"Name": "PythonFoundationPackages",
+			"Enabled": true
+		},
+		{
+			"Name": "NeuralNetworkInference",
+			"Enabled": true
 		}
 	]
 }

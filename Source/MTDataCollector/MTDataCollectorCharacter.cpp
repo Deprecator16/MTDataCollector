@@ -11,6 +11,7 @@
 #include "Misc/FileHelper.h"
 
 #include "Target.h"
+#include "MTNetwork.h"
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -19,6 +20,9 @@
 AMTDataCollectorCharacter::AMTDataCollectorCharacter()
 {
 	hasFired = false;
+	NeuralNetworkIsReady = false;
+	usingNeuralNetwork = true;
+	NeuralNetIndex = 0;
 	MouseSensitivity = 1.0f;
 	WritePath = FPaths::ProjectConfigDir();
 	WritePath += TEXT("DATA") + FDateTime::Now().ToString() + TEXT(".csv");
@@ -47,6 +51,8 @@ AMTDataCollectorCharacter::AMTDataCollectorCharacter()
 	Mesh1P->CastShadow = false;
 	Mesh1P->SetRelativeRotation(FRotator(1.9f, -19.19f, 5.2f));
 	Mesh1P->SetRelativeLocation(FVector(-0.5f, -4.4f, -155.7f));
+
+	Network = NewObject<UMTNetwork>((UObject*)GetTransientPackage(), UMTNetwork::StaticClass());
 }
 
 void AMTDataCollectorCharacter::BeginPlay()
@@ -98,6 +104,48 @@ void AMTDataCollectorCharacter::PollTrajectory()
 		&IFileManager::Get(), EFileWrite::FILEWRITE_Append);
 }
 
+void AMTDataCollectorCharacter::DoNeuralNetMovement()
+{
+	//UE_LOG(LogTemp, Warning, TEXT("Do move %d"), NeuralNetIndex);
+	FRotator delta(trajectory[NeuralNetIndex * 2], trajectory[(NeuralNetIndex * 2) + 1], 0.f);
+	FRotator current = this->GetController()->GetControlRotation();
+	FRotator finalR = current + delta;
+	this->GetController()->SetControlRotation(finalR);
+
+	if (NeuralNetIndex++ == 63)
+		GetWorldTimerManager().ClearTimer(NeuralNetHandler);
+}
+
+void AMTDataCollectorCharacter::CheckIfTargetUp()
+{
+	//UE_LOG(LogTemp, Warning, TEXT("Checking for target"));
+
+	AActor* currentTarget = UGameplayStatics::GetActorOfClass(GetWorld(), ATarget::StaticClass());
+	if (currentTarget)
+	{
+		ATarget* refTarget = Cast<ATarget>(currentTarget);
+		if (refTarget && IsValid(refTarget))
+		{
+			FVector PlayerPos = GetFirstPersonCameraComponent()->GetComponentLocation();
+			FVector RefTargetPos = refTarget->GetActorLocation();
+			FVector VectorToRefTarget = RefTargetPos - PlayerPos;
+			FRotator RefTargetAngle = VectorToRefTarget.Rotation();
+			FRotator current = this->GetController()->GetControlRotation();
+			FRotator Normalized = RefTargetAngle - current;
+			trajectory = Network->URunModel(Normalized.Pitch, Normalized.Yaw);
+			GetWorldTimerManager().SetTimer(NeuralNetHandler, this, &AMTDataCollectorCharacter::DoNeuralNetMovement, 1.f / 60.f, true, 0.0f);
+		}
+		else
+		{
+			GetWorldTimerManager().SetTimerForNextTick(this, &AMTDataCollectorCharacter::CheckIfTargetUp);
+		}
+	}
+	else
+	{
+		GetWorldTimerManager().SetTimerForNextTick(this, &AMTDataCollectorCharacter::CheckIfTargetUp);
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////// Input
 
 void AMTDataCollectorCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
@@ -130,12 +178,10 @@ void AMTDataCollectorCharacter::SetupPlayerInputComponent(class UInputComponent*
 
 void AMTDataCollectorCharacter::OnPrimaryAction()
 {
-	//const UGameDeveloperSettings* GameSettings = GetDefault<UGameDeveloperSettings>();
-	//UE_LOG(LogTemp, Warning, TEXT("%f"), GameSettings->MouseSensitivity);
-
 	if (!hasFired)
 	{
-		GetWorldTimerManager().SetTimer(MousePollingHandler, this, &AMTDataCollectorCharacter::PollTrajectory, 1.f / 60.f, true, 0.0f);
+		if (!usingNeuralNetwork)
+			GetWorldTimerManager().SetTimer(MousePollingHandler, this, &AMTDataCollectorCharacter::PollTrajectory, 1.f / 60.f, true, 0.0f);
 		hasFired = true;
 	}
 
@@ -200,10 +246,14 @@ void AMTDataCollectorCharacter::OnPrimaryAction()
 		outString += "FALSE\n";
 	}
 
-	FFileHelper::SaveStringToFile(outString, *WritePath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), EFileWrite::FILEWRITE_Append);
+	if (!usingNeuralNetwork)
+		FFileHelper::SaveStringToFile(outString, *WritePath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), EFileWrite::FILEWRITE_Append);
 
 	// Trigger the OnItemUsed Event
 	OnUseItem.Broadcast();
+
+	NeuralNetIndex = 0;
+	GetWorldTimerManager().SetTimerForNextTick(this, &AMTDataCollectorCharacter::CheckIfTargetUp);
 }
 
 void AMTDataCollectorCharacter::BeginTouch(const ETouchIndex::Type FingerIndex, const FVector Location)
@@ -263,13 +313,11 @@ void AMTDataCollectorCharacter::LookUpAtRate(float Rate)
 
 void AMTDataCollectorCharacter::TurnWithMouse(float Value)
 {
-	UE_LOG(LogTemp, Warning, TEXT("%f"), Value);
 	AddControllerYawInput(Value * MouseSensitivity);
 }
 
 void AMTDataCollectorCharacter::LookUpWithMouse(float Value)
 {
-	UE_LOG(LogTemp, Warning, TEXT("%f"), Value);
 	AddControllerPitchInput(Value * MouseSensitivity);
 }
 

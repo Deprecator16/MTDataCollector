@@ -12,6 +12,7 @@ class USceneComponent;
 class UCameraComponent;
 class UAnimMontage;
 class USoundBase;
+class UMTNetwork;
 
 // Declaration of the delegate that will be called when the Primary Action is triggered
 // It is declared as dynamic so it can be accessed also in Blueprints
@@ -34,6 +35,8 @@ public:
 	AMTDataCollectorCharacter();
 
 	void PollTrajectory();
+	void DoNeuralNetMovement();
+	void CheckIfTargetUp();
 
 protected:
 	virtual void BeginPlay();
@@ -108,9 +111,15 @@ public:
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
 private:
+	UMTNetwork* Network;
 	FTimerHandle MousePollingHandler;
+	FTimerHandle NeuralNetHandler;
 	FDateTime StartTime;
 	FString WritePath;
 	bool hasFired;
+	bool usingNeuralNetwork;
+	bool NeuralNetworkIsReady;
+	int NeuralNetIndex;
+	TArray<float> trajectory;
 };
 
