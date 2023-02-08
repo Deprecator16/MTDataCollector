@@ -21,7 +21,7 @@ AMTDataCollectorCharacter::AMTDataCollectorCharacter()
 {
 	hasFired = false;
 	NeuralNetworkIsReady = false;
-	usingNeuralNetwork = true;
+	usingNeuralNetwork = false;
 	NeuralNetIndex = 0;
 	MouseSensitivity = 1.0f;
 	WritePath = FPaths::ProjectConfigDir();
@@ -98,7 +98,7 @@ void AMTDataCollectorCharacter::PollTrajectory()
 		outString += "NA,NA,";
 	}
 
-	outString += "FALSE,NA,\n";
+	outString += "FALSE,NA\n";
 
 	FFileHelper::SaveStringToFile(outString, *WritePath, FFileHelper::EEncodingOptions::AutoDetect,
 		&IFileManager::Get(), EFileWrite::FILEWRITE_Append);
@@ -132,7 +132,7 @@ void AMTDataCollectorCharacter::CheckIfTargetUp()
 			FRotator RefTargetAngle = VectorToRefTarget.Rotation();
 			FRotator current = this->GetController()->GetControlRotation();
 			FRotator Normalized = RefTargetAngle - current;
-			trajectory = Network->URunModel(Normalized.Pitch, Normalized.Yaw);
+			//trajectory = Network->URunModel(Normalized.Pitch, Normalized.Yaw);
 			GetWorldTimerManager().SetTimer(NeuralNetHandler, this, &AMTDataCollectorCharacter::DoNeuralNetMovement, 1.f / 60.f, true, 0.0f);
 		}
 		else
