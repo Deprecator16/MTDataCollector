@@ -5,53 +5,36 @@
 
 UMTNetwork::UMTNetwork()
 {
-	Network = nullptr;
 }
 
-TArray<float> UMTNetwork::URunModel(float x, float y)
+TArray<float> UMTNetwork::URunModel(TArray<float>& inArr, FString checkPath)
 {
-	static int clicked = 0;
-	if (Network == nullptr) {
-		//Running inference
-		Network = NewObject<UNeuralNetwork>((UObject*)GetTransientPackage(), UNeuralNetwork::StaticClass());
-		//create array of the correct pixel values from results
-
-
-		// Load model from file.
-		const FString& ONNXModelFilePath = TEXT("D:/UE5 Projects/MTDataCollector/Content/Models/model.onnx");
-		// Set Device
-		Network->SetDeviceType(ENeuralDeviceType::CPU);
-		// Check that the network was successfully loaded
-		if (Network->Load(ONNXModelFilePath))
-		{
-			UE_LOG(LogTemp, Log, TEXT("Neural Network loaded successfully."))
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("UNeuralNetwork could not loaded from %s."), *ONNXModelFilePath);
-			TArray<float> failed;
-			return failed;
-		}
+	if (!hasBeenInit) {
+		InitModel(checkPath);
+		hasBeenInit = true;
 	}
 
-	float dx = x / 64.f;
-	float dy = y / 64.f;
-	TArray<float> inArr;
-
-	for (int i = 1; i <= 64; i++)
+	if (checkPath != ModelFullFilePath)
 	{
-		inArr.Add(dx * i);
-		inArr.Add(dy * i);
+		TArray<float> broken;
+		broken.Add(-1.0f);
+		return broken;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("Network Output Tensor Num: %d."), Network->GetOutputTensorNumber());
-	Network->SetInputFromArrayCopy(inArr);
-	Network->Run();
+	if (hasBeenInit)
+	{
+		SetInputFromArrayCopy(inArr);
+		Run();
+		return GetOutputTensor().GetArrayCopy<float>();
+	}
 
-	auto oTensor = Network->GetOutputTensor();
-	auto out = oTensor.GetArrayCopy<float>();
+	TArray<float> failed;
+	return failed;
+}
 
-	clicked++;
-
-	return out;
+bool UMTNetwork::InitModel(FString Path)
+{
+	// SetDeviceType(ENeuralDeviceType::CPU);
+	// SetSynchronousMode(ENeuralSynchronousMode::Synchronous);
+	return Load(Path);
 }

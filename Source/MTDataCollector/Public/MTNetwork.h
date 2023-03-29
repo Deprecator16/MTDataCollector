@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "NeuralNetwork.h"
+#include "Misc/FileHelper.h"
 #include "MTNetwork.generated.h"
 
 /**
@@ -14,8 +15,9 @@ class MTDATACOLLECTOR_API UMTNetwork : public UNeuralNetwork
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(Transient)
-	UNeuralNetwork* Network = nullptr;
 	UMTNetwork();
-	TArray<float> URunModel(float x, float y);
+	TArray<float> URunModel(TArray<float>& inArr, FString checkPath);
+	bool InitModel(FString Path);
+
+	bool hasBeenInit = false;
 };

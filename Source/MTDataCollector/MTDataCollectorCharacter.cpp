@@ -21,7 +21,7 @@ AMTDataCollectorCharacter::AMTDataCollectorCharacter()
 {
 	hasFired = false;
 	NeuralNetworkIsReady = false;
-	usingNeuralNetwork = false;
+	usingNeuralNetwork = true;
 	NeuralNetIndex = 0;
 	MouseSensitivity = 1.0f;
 	WritePath = FPaths::ProjectConfigDir();
@@ -118,8 +118,6 @@ void AMTDataCollectorCharacter::DoNeuralNetMovement()
 
 void AMTDataCollectorCharacter::CheckIfTargetUp()
 {
-	//UE_LOG(LogTemp, Warning, TEXT("Checking for target"));
-
 	AActor* currentTarget = UGameplayStatics::GetActorOfClass(GetWorld(), ATarget::StaticClass());
 	if (currentTarget)
 	{
@@ -132,7 +130,29 @@ void AMTDataCollectorCharacter::CheckIfTargetUp()
 			FRotator RefTargetAngle = VectorToRefTarget.Rotation();
 			FRotator current = this->GetController()->GetControlRotation();
 			FRotator Normalized = RefTargetAngle - current;
-			//trajectory = Network->URunModel(Normalized.Pitch, Normalized.Yaw);
+
+			float dx = Normalized.Pitch / 64.f;
+			float dy = Normalized.Yaw / 64.f;
+			inArr.Empty();
+			for (int i = 1; i <= 64; i++)
+			{
+				inArr.Add(dx * i);
+				inArr.Add(dy * i);
+			}
+
+			trajectory = Network->URunModel(inArr, TEXT("D:/UE5 Projects/MTDataCollector/Content/Models/model.onnx"));
+			if (trajectory.Num() == 1)
+			{
+				Network = NewObject<UMTNetwork>((UObject*)GetTransientPackage(), UMTNetwork::StaticClass());
+				trajectory = Network->URunModel(inArr, TEXT("D:/UE5 Projects/MTDataCollector/Content/Models/model.onnx"));
+			}
+			
+			if (trajectory.Num() == 0)
+			{
+				for (int i = 0; i < 128; i++)
+					trajectory.Push(0.0f);
+			}
+
 			GetWorldTimerManager().SetTimer(NeuralNetHandler, this, &AMTDataCollectorCharacter::DoNeuralNetMovement, 1.f / 60.f, true, 0.0f);
 		}
 		else
@@ -253,7 +273,7 @@ void AMTDataCollectorCharacter::OnPrimaryAction()
 	OnUseItem.Broadcast();
 
 	NeuralNetIndex = 0;
-	GetWorldTimerManager().SetTimerForNextTick(this, &AMTDataCollectorCharacter::CheckIfTargetUp);
+	if (usingNeuralNetwork) GetWorldTimerManager().SetTimerForNextTick(this, &AMTDataCollectorCharacter::CheckIfTargetUp);
 }
 
 void AMTDataCollectorCharacter::BeginTouch(const ETouchIndex::Type FingerIndex, const FVector Location)

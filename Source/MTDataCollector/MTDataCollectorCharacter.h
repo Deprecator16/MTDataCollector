@@ -110,6 +110,8 @@ public:
 	/** Returns FirstPersonCameraComponent subobject **/
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
+	TArray<float> inArr;
+
 private:
 	UMTNetwork* Network;
 	FTimerHandle MousePollingHandler;
