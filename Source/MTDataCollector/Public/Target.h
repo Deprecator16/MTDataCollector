@@ -14,11 +14,9 @@ class MTDATACOLLECTOR_API ATarget : public AActor
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this actor's properties
 	ATarget();
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
 private:
@@ -26,15 +24,9 @@ private:
 	AMTDataCollectorCharacter* Character;
 
 public:
-	float Health;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		UStaticMeshComponent* TargetMesh;
 
-	// Called every frame
 	virtual void Tick(float DeltaTime) override;
-
 	void DestroyTarget();
-
-	void DamageTarget(float Damage);
 };

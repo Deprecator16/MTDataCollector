@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+
 #include "MTDataCollectorCharacter.generated.h"
 
 class UInputComponent;
@@ -13,6 +14,7 @@ class UCameraComponent;
 class UAnimMontage;
 class USoundBase;
 class UMTNetwork;
+class ATarget;
 
 // Declaration of the delegate that will be called when the Primary Action is triggered
 // It is declared as dynamic so it can be accessed also in Blueprints
@@ -37,91 +39,45 @@ public:
 	void PollTrajectory();
 	void DoNeuralNetMovement();
 	void CheckIfTargetUp();
+	ATarget* GetCurrentTarget();
+
+	USkeletalMeshComponent* GetMesh1P() const { return Mesh1P; }
+	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
 protected:
 	virtual void BeginPlay();
+
+	void OnPrimaryAction();
+
+	void TurnWithMouse(float Value);
+	void LookUpWithMouse(float Value);
+
+	void MoveForward(float Val);
+	void MoveRight(float Val);
+
+	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float MouseSensitivity;
 
-	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Camera)
-	float TurnRateGamepad;
-
 	/** Delegate to whom anyone can subscribe to receive this event */
 	UPROPERTY(BlueprintAssignable, Category = "Interaction")
 	FOnUseItem OnUseItem;
-protected:
-	
-	/** Fires a projectile. */
-	void OnPrimaryAction();
 
-	/** Handles moving forward/backward */
-	void MoveForward(float Val);
-
-	/** Handles strafing movement, left and right */
-	void MoveRight(float Val);
-
-	/**
-	 * Called via input to turn at a given rate.
-	 * @param Rate	This is a normalized rate, i.e. 1.0 means 100% of desired turn rate
-	 */
-	void TurnAtRate(float Rate);
-
-	/**
-	 * Called via input to turn look up/down at a given rate.
-	 * @param Rate	This is a normalized rate, i.e. 1.0 means 100% of desired turn rate
-	 */
-	void LookUpAtRate(float Rate);
-
-	void TurnWithMouse(float Value);
-	void LookUpWithMouse(float Value);
-
-	struct TouchData
-	{
-		TouchData() { bIsPressed = false;Location=FVector::ZeroVector;}
-		bool bIsPressed;
-		ETouchIndex::Type FingerIndex;
-		FVector Location;
-		bool bMoved;
-	};
-	void BeginTouch(const ETouchIndex::Type FingerIndex, const FVector Location);
-	void EndTouch(const ETouchIndex::Type FingerIndex, const FVector Location);
-	void TouchUpdate(const ETouchIndex::Type FingerIndex, const FVector Location);
-	TouchData	TouchItem;
-	
-protected:
-	// APawn interface
-	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
-	// End of APawn interface
-
-	/* 
-	 * Configures input for touchscreen devices if there is a valid touch interface for doing so 
-	 *
-	 * @param	InputComponent	The input component pointer to bind controls to
-	 * @returns true if touch controls were enabled.
-	 */
-	bool EnableTouchscreenMovement(UInputComponent* InputComponent);
-
-public:
-	/** Returns Mesh1P subobject **/
-	USkeletalMeshComponent* GetMesh1P() const { return Mesh1P; }
-	/** Returns FirstPersonCameraComponent subobject **/
-	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
-
-	TArray<float> inArr;
-
+	const int NUM_NNI_STEPS = 64;
 private:
 	UMTNetwork* Network;
 	FTimerHandle MousePollingHandler;
 	FTimerHandle NeuralNetHandler;
 	FDateTime StartTime;
 	FString WritePath;
+	FString ModelPath;
 	bool hasFired;
 	bool usingNeuralNetwork;
 	bool NeuralNetworkIsReady;
 	int NeuralNetIndex;
 	TArray<float> trajectory;
+	TArray<float> inArr;
 };
 

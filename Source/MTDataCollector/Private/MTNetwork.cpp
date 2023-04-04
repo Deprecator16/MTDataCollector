@@ -1,6 +1,4 @@
 // Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "MTNetwork.h"
 
 UMTNetwork::UMTNetwork()
@@ -17,7 +15,6 @@ TArray<float> UMTNetwork::URunModel(TArray<float>& inArr, FString checkPath)
 	if (checkPath != ModelFullFilePath)
 	{
 		TArray<float> broken;
-		broken.Add(-1.0f);
 		return broken;
 	}
 
@@ -29,12 +26,11 @@ TArray<float> UMTNetwork::URunModel(TArray<float>& inArr, FString checkPath)
 	}
 
 	TArray<float> failed;
+	failed.AddZeroed(128);
 	return failed;
 }
 
 bool UMTNetwork::InitModel(FString Path)
 {
-	// SetDeviceType(ENeuralDeviceType::CPU);
-	// SetSynchronousMode(ENeuralSynchronousMode::Synchronous);
 	return Load(Path);
 }
