@@ -1,4 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
 #include "MTNetwork.h"
 
 UMTNetwork::UMTNetwork()

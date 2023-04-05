@@ -1,5 +1,3 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -16,8 +14,8 @@ class USoundBase;
 class UMTNetwork;
 class ATarget;
 
-// Declaration of the delegate that will be called when the Primary Action is triggered
-// It is declared as dynamic so it can be accessed also in Blueprints
+// Declaration of delegate to be called when Primary Action triggered.
+// Declared dynamic so it can be accessed in Blueprints
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUseItem);
 
 UCLASS(config=Game)
@@ -25,11 +23,9 @@ class AMTDataCollectorCharacter : public ACharacter
 {
 	GENERATED_BODY()
 
-	/** Pawn mesh: 1st person view (arms; seen only by self) */
 	UPROPERTY(VisibleDefaultsOnly, Category=Mesh)
 	USkeletalMeshComponent* Mesh1P;
 
-	/** First person camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FirstPersonCameraComponent;
 
@@ -61,7 +57,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float MouseSensitivity;
 
-	/** Delegate to whom anyone can subscribe to receive this event */
 	UPROPERTY(BlueprintAssignable, Category = "Interaction")
 	FOnUseItem OnUseItem;
 

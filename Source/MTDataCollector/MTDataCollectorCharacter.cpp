@@ -1,7 +1,5 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 #include "MTDataCollectorCharacter.h"
-#include "MTDataCollectorProjectile.h"
+
 #include "Animation/AnimInstance.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -10,12 +8,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "Misc/FileHelper.h"
 
+#include "MTDataCollectorProjectile.h"
 #include "Target.h"
 #include "MTNetwork.h"
-
-
-//////////////////////////////////////////////////////////////////////////
-// AMTDataCollectorCharacter
 
 AMTDataCollectorCharacter::AMTDataCollectorCharacter()
 {

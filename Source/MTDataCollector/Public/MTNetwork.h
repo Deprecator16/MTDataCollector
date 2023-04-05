@@ -1,14 +1,10 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "NeuralNetwork.h"
+
 #include "MTNetwork.generated.h"
 
-/**
- * 
- */
 UCLASS()
 class MTDATACOLLECTOR_API UMTNetwork : public UNeuralNetwork
 {
