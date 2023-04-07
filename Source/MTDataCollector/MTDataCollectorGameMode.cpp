@@ -1,5 +1,5 @@
 #include "MTDataCollectorGameMode.h"
-#include "MTDataCollectorCharacter.h"
+//#include "MTDataCollectorCharacter.h"
 #include "UObject/ConstructorHelpers.h"
 
 AMTDataCollectorGameMode::AMTDataCollectorGameMode()

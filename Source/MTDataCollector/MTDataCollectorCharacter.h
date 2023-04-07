@@ -2,7 +2,6 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "SharedMemory.h"
 
 #include "MTDataCollectorCharacter.generated.h"
 
@@ -12,7 +11,6 @@ class USceneComponent;
 class UCameraComponent;
 class UAnimMontage;
 class USoundBase;
-class UMTNetwork;
 class ATarget;
 
 #define USE_SHARED_NNI_MEMORY 0
@@ -26,15 +24,12 @@ class AMTDataCollectorCharacter : public ACharacter
 {
 	GENERATED_BODY()
 
-	UPROPERTY(VisibleDefaultsOnly, Category=Mesh)
-		USkeletalMeshComponent* Mesh1P;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 		UCameraComponent* FirstPersonCameraComponent;
 
 public:
 	AMTDataCollectorCharacter();
 
-	USkeletalMeshComponent* GetMesh1P() const { return Mesh1P; }
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -55,26 +50,11 @@ protected:
 
 private:
 	void PollTrajectory() const;
-	void DoNeuralNetMovement();
-	void CheckIfTargetUp();
 	ATarget* GetCurrentTarget() const;
-
-	UPROPERTY()
-		UMTNetwork* Network;
-	bool bUsingNeuralNetwork;
-	bool NeuralNetworkIsReady;
+	
 	bool bHasFired;
-	int NeuralNetIndex;
 	FString WritePath;
-	FString ModelPath;
-	TArray<float> Trajectory;
-	TArray<float> InArr;
 	FTimerHandle MousePollingHandler;
-	FTimerHandle NeuralNetHandler;
 	FDateTime StartTime;
-
-#if USE_SHARED_NNI_MEMORY
-	TUniquePtr<FSharedMemory> SharedTrajectoryBlock;
-#endif
 };
 
