@@ -13,28 +13,28 @@ ATargetManager::ATargetManager()
 
 void ATargetManager::SpawnNewTarget()
 {
-	UWorld* world = GetWorld();
-	if (!world || !spawnType)
+	UWorld* World = GetWorld();
+	if (!World || !SpawnType)
 		return;
 
 	FVector Offset;
-	Offset.X = FMath::FRandRange(0, Xmax);
-	Offset.Z = FMath::FRandRange(0, Zmax);
+	Offset.X = FMath::FRandRange(0, MaxX);
+	Offset.Z = FMath::FRandRange(0, MaxZ);
 
-	FTransform transform;
-	transform.SetLocation(GetActorLocation() + Offset);
-	transform.SetScale3D(FVector(TargetScale));
+	FTransform Transform;
+	Transform.SetLocation(GetActorLocation() + Offset);
+	Transform.SetScale3D(FVector(TargetScale));
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Owner = this;
 
-	currentTarget = world->SpawnActor<ATarget>(spawnType, transform, SpawnParams);
+	CurrentTarget = World->SpawnActor<ATarget>(SpawnType, Transform, SpawnParams);
 }
 
 void ATargetManager::DoNextCycle()
 {
-	if (IsValid(currentTarget))
-		currentTarget->Destroy();
+	if (IsValid(CurrentTarget))
+		CurrentTarget->Destroy();
 
 	SpawnNewTarget();
 }
@@ -42,17 +42,16 @@ void ATargetManager::DoNextCycle()
 void ATargetManager::BeginPlay()
 {
 	Super::BeginPlay();
-	AActor* actorToFind = UGameplayStatics::GetActorOfClass(GetWorld(), AMTDataCollectorCharacter::StaticClass());
-	AMTDataCollectorCharacter* refer = actorToFind ? Cast<AMTDataCollectorCharacter>(actorToFind) : nullptr;
+	AActor* ActorToFind = UGameplayStatics::GetActorOfClass(GetWorld(), AMTDataCollectorCharacter::StaticClass());
 
-	if (refer)
+	if (AMTDataCollectorCharacter* Refer = ActorToFind ? Cast<AMTDataCollectorCharacter>(ActorToFind) : nullptr)
 	{
-		Character = refer;
+		Character = Refer;
 		Character->OnUseItem.AddDynamic(this, &ATargetManager::DoNextCycle);
 	}
 }
 
-void ATargetManager::Tick(float DeltaTime)
+void ATargetManager::Tick(const float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 }

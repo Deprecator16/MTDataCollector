@@ -1,35 +1,26 @@
 #include "MTNetwork.h"
 
-UMTNetwork::UMTNetwork()
+UMTNetwork::UMTNetwork() :
+	bNetworkHasBeenInit(false)
 {
 }
 
-TArray<float> UMTNetwork::URunModel(TArray<float>& inArr, FString checkPath)
+TArray<float> UMTNetwork::URunModel(const TArray<float>& InArr)
 {
-	if (!hasBeenInit) {
-		InitModel(checkPath);
-		hasBeenInit = true;
-	}
-
-	if (checkPath != ModelFullFilePath)
+	if (!bNetworkHasBeenInit)
 	{
-		TArray<float> broken;
-		return broken;
+		TArray<float> Failed;
+		Failed.AddZeroed(128);
+		return Failed;
 	}
 
-	if (hasBeenInit)
-	{
-		SetInputFromArrayCopy(inArr);
-		Run();
-		return GetOutputTensor().GetArrayCopy<float>();
-	}
-
-	TArray<float> failed;
-	failed.AddZeroed(128);
-	return failed;
+	SetInputFromArrayCopy(InArr);
+	Run();
+	return GetOutputTensor().GetArrayCopy<float>();
 }
 
-bool UMTNetwork::InitModel(FString Path)
+bool UMTNetwork::InitModel(const FString& Path)
 {
-	return Load(Path);
+	bNetworkHasBeenInit = Load(Path);
+	return bNetworkHasBeenInit;
 }

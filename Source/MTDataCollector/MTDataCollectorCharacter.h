@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "SharedMemory.h"
 
 #include "MTDataCollectorCharacter.generated.h"
 
@@ -14,6 +15,8 @@ class USoundBase;
 class UMTNetwork;
 class ATarget;
 
+#define USE_SHARED_NNI_MEMORY 0
+
 // Declaration of delegate to be called when Primary Action triggered.
 // Declared dynamic so it can be accessed in Blueprints
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUseItem);
@@ -24,55 +27,54 @@ class AMTDataCollectorCharacter : public ACharacter
 	GENERATED_BODY()
 
 	UPROPERTY(VisibleDefaultsOnly, Category=Mesh)
-	USkeletalMeshComponent* Mesh1P;
-
+		USkeletalMeshComponent* Mesh1P;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
-	UCameraComponent* FirstPersonCameraComponent;
+		UCameraComponent* FirstPersonCameraComponent;
 
 public:
 	AMTDataCollectorCharacter();
 
-	void PollTrajectory();
-	void DoNeuralNetMovement();
-	void CheckIfTargetUp();
-	ATarget* GetCurrentTarget();
-
 	USkeletalMeshComponent* GetMesh1P() const { return Mesh1P; }
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		float MouseSensitivity;
+	UPROPERTY(BlueprintAssignable, Category = "Interaction")
+		FOnUseItem OnUseItem;
+
+	const int Points_Per_Trajectory = 64;
+
 protected:
-	virtual void BeginPlay();
+	virtual void BeginPlay() override;
 
 	void OnPrimaryAction();
-
 	void TurnWithMouse(float Value);
 	void LookUpWithMouse(float Value);
 
-	void MoveForward(float Val);
-	void MoveRight(float Val);
+	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
-	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
-
-public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float MouseSensitivity;
-
-	UPROPERTY(BlueprintAssignable, Category = "Interaction")
-	FOnUseItem OnUseItem;
-
-	const int NUM_NNI_STEPS = 64;
 private:
-	UMTNetwork* Network;
+	void PollTrajectory() const;
+	void DoNeuralNetMovement();
+	void CheckIfTargetUp();
+	ATarget* GetCurrentTarget() const;
+
+	UPROPERTY()
+		UMTNetwork* Network;
+	bool bUsingNeuralNetwork;
+	bool NeuralNetworkIsReady;
+	bool bHasFired;
+	int NeuralNetIndex;
+	FString WritePath;
+	FString ModelPath;
+	TArray<float> Trajectory;
+	TArray<float> InArr;
 	FTimerHandle MousePollingHandler;
 	FTimerHandle NeuralNetHandler;
 	FDateTime StartTime;
-	FString WritePath;
-	FString ModelPath;
-	bool hasFired;
-	bool usingNeuralNetwork;
-	bool NeuralNetworkIsReady;
-	int NeuralNetIndex;
-	TArray<float> trajectory;
-	TArray<float> inArr;
+
+#if USE_SHARED_NNI_MEMORY
+	TUniquePtr<FSharedMemory> SharedTrajectoryBlock;
+#endif
 };
 

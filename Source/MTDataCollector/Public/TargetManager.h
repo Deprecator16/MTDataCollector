@@ -27,21 +27,21 @@ protected:
 	virtual void BeginPlay() override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		ATarget* currentTarget;
+		ATarget* CurrentTarget;
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	AMTDataCollectorCharacter* Character;
 
 	UPROPERTY(EditAnywhere)
-	double Xmax = 1200.f;
+	double MaxX = 1200.f;
 
 	UPROPERTY(EditAnywhere)
-	double Zmax = 700.f;
+	double MaxZ = 700.f;
 
 	UPROPERTY(EditAnywhere)
 	float TargetScale = 0.25f;
 
 	UPROPERTY(EditAnywhere)
-	TSubclassOf<class ATarget> spawnType;
+	TSubclassOf<ATarget> SpawnType;
 };

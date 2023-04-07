@@ -4,30 +4,24 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
-#include "GameFramework/InputSettings.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/FileHelper.h"
 
-#include "MTDataCollectorProjectile.h"
 #include "Target.h"
 #include "MTNetwork.h"
 
 AMTDataCollectorCharacter::AMTDataCollectorCharacter()
 {
-	hasFired = false;
-	NeuralNetworkIsReady = false;
-	usingNeuralNetwork = true;
-	NeuralNetIndex = 0;
 	MouseSensitivity = 1.0f;
+	bUsingNeuralNetwork = false;
+	NeuralNetworkIsReady = false;
+	bHasFired = false;
+	NeuralNetIndex = 0;
 	WritePath = FPaths::ProjectConfigDir() + TEXT("DATA") + FDateTime::Now().ToString() + TEXT(".csv");
-	ModelPath = TEXT("D:/UE5 Projects/MTDataCollector/Content/Models/model.onnx");
+	ModelPath = TEXT("E:/SSD Repos/UE5 SSD Projects/MTDataCollector/Content/Models/model.onnx");
 
 	FFileHelper::SaveStringToFile(TEXT("Timestamp(ms),PlayerRotX,PlayerRotY,TargetRotX,TargetRotY,Fired,HitTarget\n"),
-		*WritePath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), EFileWrite::FILEWRITE_Append);
-
-	//const UGameDeveloperSettings* GameSettings = GetDefault<UGameDeveloperSettings>();
-	//UE_LOG(LogTemp, Warning, TEXT("%f"), GameSettings->MouseSensitivity);
-	//MouseSensitivity = GameSettings->MouseSensitivity;
+		*WritePath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
 
 	GetCapsuleComponent()->InitCapsuleSize(55.f, 96.0f);
 
@@ -44,7 +38,9 @@ AMTDataCollectorCharacter::AMTDataCollectorCharacter()
 	Mesh1P->SetRelativeRotation(FRotator(1.9f, -19.19f, 5.2f));
 	Mesh1P->SetRelativeLocation(FVector(-0.5f, -4.4f, -155.7f));
 
-	Network = NewObject<UMTNetwork>((UObject*)GetTransientPackage(), UMTNetwork::StaticClass());
+#if USE_SHARED_NNI_MEMORY
+	SharedTrajectoryBlock = MakeUnique<FSharedMemory>("TrajectoryMemBlock", sizeof(float) * Points_Per_Trajectory * 2);
+#endif
 }
 
 void AMTDataCollectorCharacter::BeginPlay()
@@ -53,38 +49,37 @@ void AMTDataCollectorCharacter::BeginPlay()
 	StartTime = FDateTime::Now();
 }
 
-void AMTDataCollectorCharacter::PollTrajectory()
+void AMTDataCollectorCharacter::PollTrajectory() const
 {
-	FString outString;
-	auto currentTime = FDateTime::Now() - StartTime;
-	FRotator playerRotation = GetFirstPersonCameraComponent()->GetForwardVector().Rotation();
+	FString OutString;
+	const auto CurrentTime = FDateTime::Now() - StartTime;
+	const FRotator PlayerRotation = GetFirstPersonCameraComponent()->GetForwardVector().Rotation();
 
-	outString += FString::SanitizeFloat(currentTime.GetTotalMilliseconds()) + ",";
-	outString += FString::SanitizeFloat(playerRotation.Pitch) + "," + FString::SanitizeFloat(playerRotation.Yaw) + ",";
+	OutString += FString::SanitizeFloat(CurrentTime.GetTotalMilliseconds()) + ",";
+	OutString += FString::SanitizeFloat(PlayerRotation.Pitch) + "," + FString::SanitizeFloat(PlayerRotation.Yaw) + ",";
 
-	ATarget* refTarget = GetCurrentTarget();
-	if (IsValid(refTarget))
+	if (const ATarget* RefTarget = GetCurrentTarget(); IsValid(RefTarget))
 	{
-		FVector RefTargetPos = refTarget->GetActorLocation();
-		FVector VectorToRefTarget = RefTargetPos - GetFirstPersonCameraComponent()->GetComponentLocation();
-		FRotator RefTargetAngle = VectorToRefTarget.Rotation();
-		outString += FString::SanitizeFloat(RefTargetAngle.Pitch) + "," + FString::SanitizeFloat(RefTargetAngle.Yaw) + ",";
+		const FVector RefTargetPos = RefTarget->GetActorLocation();
+		const FVector VectorToRefTarget = RefTargetPos - GetFirstPersonCameraComponent()->GetComponentLocation();
+		const FRotator RefTargetAngle = VectorToRefTarget.Rotation();
+		OutString += FString::SanitizeFloat(RefTargetAngle.Pitch) + "," + FString::SanitizeFloat(RefTargetAngle.Yaw) + ",";
 	}
 	else
 	{
-		outString += "NA,NA,";
+		OutString += "NA,NA,";
 	}
 
-	outString += "FALSE,NA\n";
-	FFileHelper::SaveStringToFile(outString, *WritePath, FFileHelper::EEncodingOptions::AutoDetect,
-		&IFileManager::Get(), EFileWrite::FILEWRITE_Append);
+	OutString += "FALSE,NA\n";
+	FFileHelper::SaveStringToFile(OutString, *WritePath, FFileHelper::EEncodingOptions::AutoDetect,
+		&IFileManager::Get(), FILEWRITE_Append);
 }
 
 void AMTDataCollectorCharacter::DoNeuralNetMovement()
 {
-	FRotator delta(trajectory[NeuralNetIndex * 2], trajectory[(NeuralNetIndex * 2) + 1], 0.f);
-	FRotator newRotation = GetController()->GetControlRotation() + delta;
-	GetController()->SetControlRotation(newRotation);
+	const FRotator Delta(Trajectory[NeuralNetIndex * 2], Trajectory[NeuralNetIndex * 2 + 1], 0.f);
+	const FRotator NewRotation = GetController()->GetControlRotation() + Delta;
+	GetController()->SetControlRotation(NewRotation);
 
 	if (NeuralNetIndex++ == 63)
 		GetWorldTimerManager().ClearTimer(NeuralNetHandler);
@@ -92,28 +87,32 @@ void AMTDataCollectorCharacter::DoNeuralNetMovement()
 
 void AMTDataCollectorCharacter::CheckIfTargetUp()
 {
-	ATarget* refTarget = GetCurrentTarget();
-	if (IsValid(refTarget))
+	if (const ATarget* RefTarget = GetCurrentTarget(); IsValid(RefTarget))
 	{
-		FVector VectorToRefTarget = refTarget->GetActorLocation() - GetFirstPersonCameraComponent()->GetComponentLocation();
-		FRotator Normalized = VectorToRefTarget.Rotation() - GetController()->GetControlRotation();
+		const FVector VectorToRefTarget = RefTarget->GetActorLocation() - GetFirstPersonCameraComponent()->
+			GetComponentLocation();
+		const FRotator Normalized = VectorToRefTarget.Rotation() - GetController()->GetControlRotation();
 
-		float dx = Normalized.Pitch / 64.f;
-		float dy = Normalized.Yaw / 64.f;
-		inArr.Reset(NUM_NNI_STEPS * 2);
-		for (int i = 0; i < NUM_NNI_STEPS; i++)
+		// ReSharper disable once CppUE4CodingStandardNamingViolationWarning
+		const float dx = Normalized.Pitch / 64.f;
+		// ReSharper disable once CppUE4CodingStandardNamingViolationWarning
+		const float dy = Normalized.Yaw / 64.f;
+		InArr.Reset(Points_Per_Trajectory * 2);
+		for (int i = 0; i < Points_Per_Trajectory; i++)
 		{
-			inArr.Add(dx * i);
-			inArr.Add(dy * i);
+			InArr.Add(dx * i);
+			InArr.Add(dy * i);
 		}
 
-		trajectory = Network->URunModel(inArr, ModelPath);
-		while (trajectory.Num() == 0)
+		if (bUsingNeuralNetwork && !IsValid(Network))
 		{
-			Network = NewObject<UMTNetwork>((UObject*)GetTransientPackage(), UMTNetwork::StaticClass());
-			trajectory = Network->URunModel(inArr, ModelPath);
+			Network = NewObject<UMTNetwork>(GetTransientPackage(), UMTNetwork::StaticClass());
+			Network->InitModel(ModelPath);
 		}
-		GetWorldTimerManager().SetTimer(NeuralNetHandler, this, &AMTDataCollectorCharacter::DoNeuralNetMovement, 1.f / 60.f, true, 0.0f);
+
+		Trajectory = Network->URunModel(InArr);
+		GetWorldTimerManager().SetTimer(NeuralNetHandler, this, &AMTDataCollectorCharacter::DoNeuralNetMovement,
+		                                1.f / 60.f, true, 0.0f);
 	}
 	else
 	{
@@ -121,103 +120,80 @@ void AMTDataCollectorCharacter::CheckIfTargetUp()
 	}
 }
 
-ATarget* AMTDataCollectorCharacter::GetCurrentTarget()
+ATarget* AMTDataCollectorCharacter::GetCurrentTarget() const
 {
-	AActor* currentTarget = UGameplayStatics::GetActorOfClass(GetWorld(), ATarget::StaticClass());
-	return currentTarget ? Cast<ATarget>(currentTarget) : nullptr;
+	AActor* CurrentTarget = UGameplayStatics::GetActorOfClass(GetWorld(), ATarget::StaticClass());
+	return CurrentTarget ? Cast<ATarget>(CurrentTarget) : nullptr;
 }
 
-void AMTDataCollectorCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
+void AMTDataCollectorCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	check(PlayerInputComponent);
-
-	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
-	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
-
 	PlayerInputComponent->BindAction("PrimaryAction", IE_Pressed, this, &AMTDataCollectorCharacter::OnPrimaryAction);
-
-	PlayerInputComponent->BindAxis("Move Forward / Backward", this, &AMTDataCollectorCharacter::MoveForward);
-	PlayerInputComponent->BindAxis("Move Right / Left", this, &AMTDataCollectorCharacter::MoveRight);
-
 	PlayerInputComponent->BindAxis("Turn Right / Left Mouse", this, &AMTDataCollectorCharacter::TurnWithMouse);
 	PlayerInputComponent->BindAxis("Look Up / Down Mouse", this, &AMTDataCollectorCharacter::LookUpWithMouse);
 }
 
 void AMTDataCollectorCharacter::OnPrimaryAction()
 {
-	if (usingNeuralNetwork)
+	if (bUsingNeuralNetwork)
 	{
 		NeuralNetIndex = 0;
 		GetWorldTimerManager().SetTimerForNextTick(this, &AMTDataCollectorCharacter::CheckIfTargetUp);
 	}
 	else
 	{
-		GetWorldTimerManager().SetTimer(MousePollingHandler, this, &AMTDataCollectorCharacter::PollTrajectory, 1.f / 60.f, true, 0.0f);
+		GetWorldTimerManager().SetTimer(MousePollingHandler, this, &AMTDataCollectorCharacter::PollTrajectory,
+		                                1.f / 60.f, true, 0.0f);
 
-		FString outString;
-		auto currentTime = FDateTime::Now() - StartTime;
-		outString += FString::SanitizeFloat(currentTime.GetTotalMilliseconds()) + ",";
+		FString OutString;
+		const auto CurrentTime = FDateTime::Now() - StartTime;
+		OutString += FString::SanitizeFloat(CurrentTime.GetTotalMilliseconds()) + ",";
 
-		FVector PlayerLocation = GetFirstPersonCameraComponent()->GetComponentLocation();
-		FVector ForwardVector = GetFirstPersonCameraComponent()->GetForwardVector();
-		FRotator playerRotation = ForwardVector.Rotation();
-		outString += FString::SanitizeFloat(playerRotation.Pitch) + "," + FString::SanitizeFloat(playerRotation.Yaw) + ",";
+		const FVector PlayerLocation = GetFirstPersonCameraComponent()->GetComponentLocation();
+		const FVector ForwardVector = GetFirstPersonCameraComponent()->GetForwardVector();
+		const FRotator PlayerRotation = ForwardVector.Rotation();
+		OutString += FString::SanitizeFloat(PlayerRotation.Pitch) + "," + FString::SanitizeFloat(PlayerRotation.Yaw) + ",";
 
-		ATarget* refTarget = GetCurrentTarget();
-		if (IsValid(refTarget))
+		if (const ATarget* RefTarget = GetCurrentTarget(); IsValid(RefTarget))
 		{
-			FVector VectorToRefTarget = refTarget->GetActorLocation() - PlayerLocation;
-			FRotator RefTargetAngle = VectorToRefTarget.Rotation();
-			outString += FString::SanitizeFloat(RefTargetAngle.Pitch) + "," + FString::SanitizeFloat(RefTargetAngle.Yaw) + ",";
+			const FVector VectorToRefTarget = RefTarget->GetActorLocation() - PlayerLocation;
+			const FRotator RefTargetAngle = VectorToRefTarget.Rotation();
+			OutString += FString::SanitizeFloat(RefTargetAngle.Pitch) + "," + FString::SanitizeFloat(RefTargetAngle.Yaw) + ",";
 		}
 		else
 		{
-			outString += "NA,NA,";
+			OutString += "NA,NA,";
 		}
 
-		outString += "TRUE,";
+		OutString += "TRUE,";
 
 		FHitResult* HitResult = new FHitResult();
-		FVector EndTrace = ForwardVector * 10000.f + PlayerLocation;
-		FCollisionQueryParams* TraceParams = new FCollisionQueryParams();
-		if (GetWorld()->LineTraceSingleByChannel(*HitResult, PlayerLocation, EndTrace, ECC_Visibility, *TraceParams))
+		const FVector EndTrace = ForwardVector * 10000.f + PlayerLocation;
+		if (const FCollisionQueryParams* TraceParams = new FCollisionQueryParams(); GetWorld()->
+			LineTraceSingleByChannel(*HitResult, PlayerLocation, EndTrace, ECC_Visibility, *TraceParams))
 		{
-			ATarget* target = Cast<ATarget>(HitResult->GetActor());
-			outString += IsValid(target) ? "TRUE\n" : "FALSE\n";
+			const ATarget* Target = Cast<ATarget>(HitResult->GetActor());
+			OutString += IsValid(Target) ? "TRUE\n" : "FALSE\n";
 		}
 		else
 		{
-			outString += "FALSE\n";
+			OutString += "FALSE\n";
 		}
 
-		FFileHelper::SaveStringToFile(outString, *WritePath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), EFileWrite::FILEWRITE_Append);
+		FFileHelper::SaveStringToFile(OutString, *WritePath, FFileHelper::EEncodingOptions::AutoDetect,
+		                              &IFileManager::Get(), FILEWRITE_Append);
 	}
 
 	OnUseItem.Broadcast();
 }
 
-void AMTDataCollectorCharacter::MoveForward(float Value)
-{
-	if (Value != 0.0f)
-	{
-		AddMovementInput(GetActorForwardVector(), Value);
-	}
-}
-
-void AMTDataCollectorCharacter::MoveRight(float Value)
-{
-	if (Value != 0.0f)
-	{
-		AddMovementInput(GetActorRightVector(), Value);
-	}
-}
-
-void AMTDataCollectorCharacter::TurnWithMouse(float Value)
+void AMTDataCollectorCharacter::TurnWithMouse(const float Value)
 {
 	AddControllerYawInput(Value * MouseSensitivity);
 }
 
-void AMTDataCollectorCharacter::LookUpWithMouse(float Value)
+void AMTDataCollectorCharacter::LookUpWithMouse(const float Value)
 {
 	AddControllerPitchInput(Value * MouseSensitivity);
 }

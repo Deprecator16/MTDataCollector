@@ -13,7 +13,7 @@ void ATarget::BeginPlay()
 	Super::BeginPlay();
 }
 
-void ATarget::Tick(float DeltaTime)
+void ATarget::Tick(const float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
