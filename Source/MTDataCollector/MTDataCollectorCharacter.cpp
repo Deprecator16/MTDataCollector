@@ -1,6 +1,5 @@
 #include "MTDataCollectorCharacter.h"
 
-#include "Animation/AnimInstance.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
@@ -9,15 +8,11 @@
 
 #include "Target.h"
 
-AMTDataCollectorCharacter::AMTDataCollectorCharacter()
+AMTDataCollectorCharacter::AMTDataCollectorCharacter() :
+	MouseSensitivity(1.0f), bHasFired(false),
+	WritePath(FPaths::ProjectConfigDir() + TEXT("/DATA/DATA") + FDateTime::Now().ToString() + TEXT("/")),
+	FileName(TEXT("FLICKING.csv")), AnglePollRateHertz(60.0)
 {
-	MouseSensitivity = 1.0f;
-	bHasFired = false;
-	WritePath = FPaths::ProjectConfigDir() + TEXT("DATA") + FDateTime::Now().ToString() + TEXT(".csv");
-
-	FFileHelper::SaveStringToFile(TEXT("Timestamp(ms),PlayerRotX,PlayerRotY,TargetRotX,TargetRotY,Fired,HitTarget\n"),
-		*WritePath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
-
 	GetCapsuleComponent()->InitCapsuleSize(55.f, 96.0f);
 
 	FirstPersonCameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
@@ -29,39 +24,11 @@ AMTDataCollectorCharacter::AMTDataCollectorCharacter()
 void AMTDataCollectorCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// ReSharper disable once CppExpressionWithoutSideEffects
+	WriteStringToDataFile(
+		TEXT("Timestamp(ms),PlayerRotX,PlayerRotY,TargetRotX,TargetRotY,Fired,HitTarget\n"), FileName);
 	StartTime = FDateTime::Now();
-}
-
-void AMTDataCollectorCharacter::PollTrajectory() const
-{
-	FString OutString;
-	const auto CurrentTime = FDateTime::Now() - StartTime;
-	const FRotator PlayerRotation = GetFirstPersonCameraComponent()->GetForwardVector().Rotation();
-
-	OutString += FString::SanitizeFloat(CurrentTime.GetTotalMilliseconds()) + ",";
-	OutString += FString::SanitizeFloat(PlayerRotation.Pitch) + "," + FString::SanitizeFloat(PlayerRotation.Yaw) + ",";
-
-	if (const ATarget* RefTarget = GetCurrentTarget(); IsValid(RefTarget))
-	{
-		const FVector RefTargetPos = RefTarget->GetActorLocation();
-		const FVector VectorToRefTarget = RefTargetPos - GetFirstPersonCameraComponent()->GetComponentLocation();
-		const FRotator RefTargetAngle = VectorToRefTarget.Rotation();
-		OutString += FString::SanitizeFloat(RefTargetAngle.Pitch) + "," + FString::SanitizeFloat(RefTargetAngle.Yaw) + ",";
-	}
-	else
-	{
-		OutString += "NA,NA,";
-	}
-
-	OutString += "FALSE,NA\n";
-	FFileHelper::SaveStringToFile(OutString, *WritePath, FFileHelper::EEncodingOptions::AutoDetect,
-		&IFileManager::Get(), FILEWRITE_Append);
-}
-
-ATarget* AMTDataCollectorCharacter::GetCurrentTarget() const
-{
-	AActor* CurrentTarget = UGameplayStatics::GetActorOfClass(GetWorld(), ATarget::StaticClass());
-	return CurrentTarget ? Cast<ATarget>(CurrentTarget) : nullptr;
 }
 
 void AMTDataCollectorCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -74,8 +41,12 @@ void AMTDataCollectorCharacter::SetupPlayerInputComponent(UInputComponent* Playe
 
 void AMTDataCollectorCharacter::OnPrimaryAction()
 {
-	GetWorldTimerManager().SetTimer(MousePollingHandler, this, &AMTDataCollectorCharacter::PollTrajectory,
-	                                1.f / 60.f, true, 0.0f);
+	if (!bHasFired)
+	{
+		GetWorldTimerManager().SetTimer(MousePollingHandler, this, &AMTDataCollectorCharacter::PollPlayerAngle,
+		                                1.f / AnglePollRateHertz, true, 0.0f);
+		bHasFired = true;
+	}
 
 	FString OutString;
 	const auto CurrentTime = FDateTime::Now() - StartTime;
@@ -90,7 +61,8 @@ void AMTDataCollectorCharacter::OnPrimaryAction()
 	{
 		const FVector VectorToRefTarget = RefTarget->GetActorLocation() - PlayerLocation;
 		const FRotator RefTargetAngle = VectorToRefTarget.Rotation();
-		OutString += FString::SanitizeFloat(RefTargetAngle.Pitch) + "," + FString::SanitizeFloat(RefTargetAngle.Yaw) + ",";
+		OutString += FString::SanitizeFloat(RefTargetAngle.Pitch) + "," +
+			FString::SanitizeFloat(RefTargetAngle.Yaw) + ",";
 	}
 	else
 	{
@@ -112,8 +84,8 @@ void AMTDataCollectorCharacter::OnPrimaryAction()
 		OutString += "FALSE\n";
 	}
 
-	FFileHelper::SaveStringToFile(OutString, *WritePath, FFileHelper::EEncodingOptions::AutoDetect,
-	                              &IFileManager::Get(), FILEWRITE_Append);
+	// ReSharper disable once CppExpressionWithoutSideEffects
+	WriteStringToDataFile(OutString, FileName);
 
 	OnUseItem.Broadcast();
 }
@@ -126,4 +98,44 @@ void AMTDataCollectorCharacter::TurnWithMouse(const float Value)
 void AMTDataCollectorCharacter::LookUpWithMouse(const float Value)
 {
 	AddControllerPitchInput(Value * MouseSensitivity);
+}
+
+void AMTDataCollectorCharacter::PollPlayerAngle() const
+{
+	FString OutString;
+	const auto CurrentTime = FDateTime::Now() - StartTime;
+	const FRotator PlayerRotation = GetFirstPersonCameraComponent()->GetForwardVector().Rotation();
+
+	OutString += FString::SanitizeFloat(CurrentTime.GetTotalMilliseconds()) + ",";
+	OutString += FString::SanitizeFloat(PlayerRotation.Pitch) + "," + FString::SanitizeFloat(PlayerRotation.Yaw) + ",";
+
+	if (const ATarget* RefTarget = GetCurrentTarget(); IsValid(RefTarget))
+	{
+		const FVector RefTargetPos = RefTarget->GetActorLocation();
+		const FVector VectorToRefTarget = RefTargetPos - GetFirstPersonCameraComponent()->GetComponentLocation();
+		const FRotator RefTargetAngle = VectorToRefTarget.Rotation();
+		OutString += FString::SanitizeFloat(RefTargetAngle.Pitch) + "," +
+			FString::SanitizeFloat(RefTargetAngle.Yaw) + ",";
+	}
+	else
+	{
+		OutString += "NA,NA,";
+	}
+
+	OutString += "FALSE,NA\n";
+
+	// ReSharper disable once CppExpressionWithoutSideEffects
+	WriteStringToDataFile(OutString, FileName);
+}
+
+ATarget* AMTDataCollectorCharacter::GetCurrentTarget() const
+{
+	AActor* CurrentTarget = UGameplayStatics::GetActorOfClass(GetWorld(), ATarget::StaticClass());
+	return IsValid(CurrentTarget) ? Cast<ATarget>(CurrentTarget) : nullptr;
+}
+
+bool AMTDataCollectorCharacter::WriteStringToDataFile(const FString& Text, const FString& File) const
+{
+	return FFileHelper::SaveStringToFile(Text, *(WritePath + File), FFileHelper::EEncodingOptions::AutoDetect,
+	                                     &IFileManager::Get(), FILEWRITE_Append);
 }

@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 
+#include "TargetManager.h"
+
 #include "MTDataCollectorCharacter.generated.h"
 
 class UInputComponent;
@@ -11,9 +13,8 @@ class USceneComponent;
 class UCameraComponent;
 class UAnimMontage;
 class USoundBase;
+class ATargetManager;
 class ATarget;
-
-#define USE_SHARED_NNI_MEMORY 0
 
 // Declaration of delegate to be called when Primary Action triggered.
 // Declared dynamic so it can be accessed in Blueprints
@@ -25,7 +26,7 @@ class AMTDataCollectorCharacter : public ACharacter
 	GENERATED_BODY()
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
-		UCameraComponent* FirstPersonCameraComponent;
+	UCameraComponent* FirstPersonCameraComponent;
 
 public:
 	AMTDataCollectorCharacter();
@@ -33,28 +34,32 @@ public:
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		float MouseSensitivity;
-	UPROPERTY(BlueprintAssignable, Category = "Interaction")
-		FOnUseItem OnUseItem;
+	float MouseSensitivity;
 
-	const int Points_Per_Trajectory = 64;
+	UPROPERTY(BlueprintAssignable, Category = "Interaction")
+	FOnUseItem OnUseItem;
+
+	UPROPERTY()
+	ETargetManagerMode TargetManagerMode;
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
 	void OnPrimaryAction();
 	void TurnWithMouse(float Value);
 	void LookUpWithMouse(float Value);
 
-	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
-
 private:
-	void PollTrajectory() const;
+	void PollPlayerAngle() const;
 	ATarget* GetCurrentTarget() const;
-	
+
+	bool WriteStringToDataFile(const FString& Text, const FString& File) const;
+
 	bool bHasFired;
 	FString WritePath;
+	FString FileName;
+	double AnglePollRateHertz;
 	FTimerHandle MousePollingHandler;
 	FDateTime StartTime;
 };
-

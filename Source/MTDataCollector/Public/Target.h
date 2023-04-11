@@ -14,18 +14,13 @@ class MTDATACOLLECTOR_API ATarget : public AActor
 public:
 	ATarget();
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UStaticMeshComponent* TargetMesh;
+
 protected:
 	virtual void BeginPlay() override;
 
 private:
-	// The character that will be shooting the targets
 	UPROPERTY()
-		AMTDataCollectorCharacter* Character;
-
-public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		UStaticMeshComponent* TargetMesh;
-
-	virtual void Tick(float DeltaTime) override;
-	void DestroyTarget();
+	AMTDataCollectorCharacter* Character;
 };

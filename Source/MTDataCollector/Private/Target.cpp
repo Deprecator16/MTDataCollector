@@ -11,14 +11,3 @@ void ATarget::BeginPlay()
 {
 	Super::BeginPlay();
 }
-
-void ATarget::Tick(const float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
-}
-
-void ATarget::DestroyTarget()
-{
-	Destroy();
-}
