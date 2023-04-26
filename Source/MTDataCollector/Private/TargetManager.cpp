@@ -5,8 +5,8 @@
 #include "Kismet/GameplayStatics.h"
 
 ATargetManager::ATargetManager() :
-	TargetMode(ETargetManagerMode::MovingXZ), MaxX(1800.0), MaxY(0.0), MaxZ(700.0), TargetScale(0.25),
-	DefaultMovementSpeed(50.0), CurrentMovementSpeed(0.0)
+	TargetMode(ETargetManagerMode::Moving), MaxX(1800.0), MaxY(0.0), MaxZ(700.0), MaxReaction(7.0), MinReaction(1.0),
+	TargetScale(0.25), DefaultMovementSpeed(50.0), CurrentMovementSpeed(0.0)
 {
 	PrimaryActorTick.bCanEverTick = true;
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("DefaultSceneRoot"));
@@ -50,6 +50,19 @@ void ATargetManager::SpawnMovingTarget(const FVector& StartOffset, const FVector
 	SpawnMovingTarget(StartOffset, EndOffset, LerpPercentage, DefaultMovementSpeed);
 }
 
+void ATargetManager::SpawnReactionTimeTarget()
+{
+	SpawnStaticTarget({MaxX / 2, MaxY / 2, MaxZ / 2}); // Spawn at midpoint
+	OnTargetSpawn.Broadcast();
+}
+
+void ATargetManager::SpawnRandTargetOnSphere()
+{
+	FVector SpherePoint = FMath::VRand();
+	SpherePoint *= {MaxX, MaxY, MaxZ};
+	SpawnStaticTarget(SpherePoint);
+}
+
 void ATargetManager::SpawnNewTarget()
 {
 	if (!IsThisManagerValid())
@@ -63,28 +76,50 @@ void ATargetManager::SpawnNewTarget()
 		SpawnStaticTarget(GenRandomPointInSpawnBox());
 		break;
 	case ETargetManagerMode::LargeAngle:
+		SpawnRandTargetOnSphere();
 		break;
-	case ETargetManagerMode::MovingX:
-		break;
-	case ETargetManagerMode::MovingZ:
-		break;
-	case ETargetManagerMode::MovingXZ:
+	case ETargetManagerMode::Tracking:
 		SpawnMovingTarget(GenRandomPointInSpawnBox(), GenRandomPointInSpawnBox(), FMath::FRandRange(0.0, 1.0));
+		GetWorldTimerManager().ClearTimer(TrackingHandler);
+		GetWorldTimerManager().SetTimer(TrackingHandler, this, &ATargetManager::DestroyAndSpawnNextTarget,
+		                                3.f, false);
 		break;
 	case ETargetManagerMode::ReactionTime:
+		GetWorldTimerManager().ClearTimer(ReactionTimeHandler);
+		GetWorldTimerManager().SetTimer(ReactionTimeHandler, this, &ATargetManager::SpawnReactionTimeTarget,
+		                                FMath::FRandRange(MinReaction, MaxReaction), false);
+		break;
+	case ETargetManagerMode::Moving:
 	default:
-		SpawnStaticTarget({MaxX / 2, MaxY / 2, MaxZ / 2}); // Spawn at midpoint
+		SpawnMovingTarget(GenRandomPointInSpawnBox(), GenRandomPointInSpawnBox(), FMath::FRandRange(0.0, 1.0));
 		break;
 	}
 }
 
 void ATargetManager::DestroyAndSpawnNextTarget()
 {
+	if (TargetMode == ETargetManagerMode::Tracking)
+	{
+		OnTargetSpawn.Broadcast();
+	}
+
 	if (IsValid(CurrentTarget))
 	{
 		CurrentTarget->Destroy();
 	}
 
+	SpawnNewTarget();
+}
+
+void ATargetManager::StartTrackingMode()
+{
+	Character->OnUseItem.RemoveDynamic(this, &ATargetManager::StartTrackingMode);
+	SpawnNewTarget();
+}
+
+void ATargetManager::StartReactionTimeMode()
+{
+	Character->OnUseItem.RemoveDynamic(this, &ATargetManager::StartTrackingMode);
 	SpawnNewTarget();
 }
 
@@ -102,7 +137,24 @@ void ATargetManager::BeginPlay()
 	{
 		Character = Refer;
 		Character->TargetManagerMode = TargetMode;
-		Character->OnUseItem.AddDynamic(this, &ATargetManager::DestroyAndSpawnNextTarget);
+
+		switch (TargetMode)
+		{
+		case ETargetManagerMode::ReactionTime:
+			Character->OnUseItem.AddDynamic(this, &ATargetManager::ATargetManager::DestroyAndSpawnNextTarget);
+			OnTargetSpawn.AddDynamic(Character, &AMTDataCollectorCharacter::WriteReactionTimeTargetSpawnedToDataFile);
+			break;
+		case ETargetManagerMode::Tracking:
+			Character->OnUseItem.AddDynamic(this, &ATargetManager::StartTrackingMode);
+			OnTargetSpawn.AddDynamic(Character, &AMTDataCollectorCharacter::WriteTrackingTargetSpawnedToDataFile);
+			break;
+		case ETargetManagerMode::LargeAngle:
+		case ETargetManagerMode::Moving:
+		case ETargetManagerMode::Static:
+		default:
+			Character->OnUseItem.AddDynamic(this, &ATargetManager::DestroyAndSpawnNextTarget);
+			break;
+		}
 	}
 }
 
@@ -110,9 +162,7 @@ void ATargetManager::Tick(const float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (TargetMode == ETargetManagerMode::MovingX ||
-		TargetMode == ETargetManagerMode::MovingZ ||
-		TargetMode == ETargetManagerMode::MovingXZ &&
+	if ((TargetMode == ETargetManagerMode::Moving || TargetMode == ETargetManagerMode::Tracking) &&
 		IsValid(CurrentTarget))
 	{
 		const FVector NewPos = FMath::VInterpConstantTo(CurrentTarget->GetActorLocation(), LerpEnd, DeltaTime,

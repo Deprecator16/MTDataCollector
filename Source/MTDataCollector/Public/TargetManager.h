@@ -7,16 +7,19 @@
 class AMTDataCollectorCharacter;
 class ATarget;
 
-UENUM()
-enum class ETargetManagerMode
+UENUM(BlueprintType)
+enum class ETargetManagerMode : uint8
 {
-	Static,
-	MovingX,
-	MovingZ,
-	MovingXZ,
-	LargeAngle,
-	ReactionTime,
+	Static UMETA(DisplayName = "Static"),
+	Moving UMETA(DisplayName = "Moving"),
+	Tracking UMETA(DisplayName = "Tracking"),
+	LargeAngle UMETA(DisplayName = "LargeAngle"),
+	ReactionTime UMETA(DisplayName = "ReactionTime"),
 };
+
+// Declaration of delegate to be called when Primary Action triggered.
+// Declared dynamic so it can be accessed in Blueprints
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTargetSpawn);
 
 UCLASS()
 class MTDATACOLLECTOR_API ATargetManager : public AActor
@@ -33,8 +36,19 @@ public:
 	void SpawnMovingTarget(const FVector& StartOffset, const FVector& EndOffset, double LerpPercentage,
 	                       const double MovementSpeed);
 	void SpawnMovingTarget(const FVector& StartOffset, const FVector& EndOffset, double LerpPercentage);
+	void SpawnReactionTimeTarget();
+	void SpawnRandTargetOnSphere();
 	void SpawnNewTarget();
+
+	UFUNCTION()
 	void DestroyAndSpawnNextTarget();
+
+	UFUNCTION()
+	void StartTrackingMode();
+
+	UFUNCTION()
+	void StartReactionTimeMode();
+
 	FVector GenRandomPointInSpawnBox() const;
 
 	UPROPERTY(EditAnywhere)
@@ -59,6 +73,12 @@ public:
 	double MaxZ;
 
 	UPROPERTY(EditAnywhere)
+	double MaxReaction;
+
+	UPROPERTY(EditAnywhere)
+	double MinReaction;
+
+	UPROPERTY(EditAnywhere)
 	double TargetScale;
 
 	UPROPERTY(EditAnywhere)
@@ -67,10 +87,15 @@ public:
 	UPROPERTY(EditAnywhere)
 	double CurrentMovementSpeed;
 
+	UPROPERTY(BlueprintAssignable, Category = "Interaction")
+	FOnTargetSpawn OnTargetSpawn;
+
 protected:
 	virtual void BeginPlay() override;
 
 private:
+	FTimerHandle TrackingHandler;
+	FTimerHandle ReactionTimeHandler;
 	FVector LerpStart;
 	FVector LerpEnd;
 };

@@ -10,8 +10,8 @@
 
 AMTDataCollectorCharacter::AMTDataCollectorCharacter() :
 	MouseSensitivity(1.0f), bHasFired(false),
-	WritePath(FPaths::ProjectConfigDir() + TEXT("/DATA/DATA") + FDateTime::Now().ToString() + TEXT("/")),
-	FileName(TEXT("FLICKING.csv")), AnglePollRateHertz(60.0)
+	WritePath(FPaths::ProjectConfigDir() + TEXT("/DATA/Moving/")),
+	FileName(TEXT("MOVING") + FDateTime::Now().ToString() + TEXT(".csv")), AnglePollRateHertz(60.0)
 {
 	GetCapsuleComponent()->InitCapsuleSize(55.f, 96.0f);
 
@@ -24,11 +24,43 @@ AMTDataCollectorCharacter::AMTDataCollectorCharacter() :
 void AMTDataCollectorCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-
-	// ReSharper disable once CppExpressionWithoutSideEffects
-	WriteStringToDataFile(
-		TEXT("Timestamp(ms),PlayerRotX,PlayerRotY,TargetRotX,TargetRotY,Fired,HitTarget\n"), FileName);
 	StartTime = FDateTime::Now();
+
+	switch (TargetManagerMode)
+	{
+	case ETargetManagerMode::Static:
+		WritePath = FPaths::ProjectConfigDir() + TEXT("/DATA/Static/");
+		FileName = TEXT("STATIC") + FDateTime::Now().ToString() + TEXT(".csv");
+		WriteStringToFile(
+			TEXT("Timestamp(ms),PlayerRotX,PlayerRotY,TargetRotX,TargetRotY,Fired,HitTarget\n"), FileName);
+		break;
+	case ETargetManagerMode::LargeAngle:
+		WritePath = FPaths::ProjectConfigDir() + TEXT("/DATA/LargeAngles/");
+		FileName = TEXT("LARGEANGLE") + FDateTime::Now().ToString() + TEXT(".csv");
+		WriteStringToFile(
+			TEXT("Timestamp(ms),PlayerRotX,PlayerRotY,TargetRotX,TargetRotY,Fired,HitTarget\n"), FileName);
+		break;
+	case ETargetManagerMode::Tracking:
+		WritePath = FPaths::ProjectConfigDir() + TEXT("/DATA/Tracking/");
+		FileName = TEXT("TRACKING") + FDateTime::Now().ToString() + TEXT(".csv");
+		WriteStringToFile(
+			TEXT("Timestamp(ms),PlayerRotX,PlayerRotY,TargetRotX,TargetRotY,JustSpawned,OnTarget\n"), FileName);
+		break;
+	case ETargetManagerMode::ReactionTime:
+		bHasFired = true;
+		WritePath = FPaths::ProjectConfigDir() + TEXT("/DATA/ReactionTime/");
+		FileName = TEXT("REACTIONTIME") + FDateTime::Now().ToString() + TEXT(".csv");
+		WriteStringToFile(
+			TEXT("Timestamp(ms),Spawned, Clicked\n"), FileName);
+		break;
+	case ETargetManagerMode::Moving:
+	default:
+		WritePath = FPaths::ProjectConfigDir() + TEXT("/DATA/Moving/");
+		FileName = TEXT("MOVING") + FDateTime::Now().ToString() + TEXT(".csv");
+		WriteStringToFile(
+			TEXT("Timestamp(ms),PlayerRotX,PlayerRotY,TargetRotX,TargetRotY,Fired,HitTarget\n"), FileName);
+		break;
+	}
 }
 
 void AMTDataCollectorCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -48,13 +80,73 @@ void AMTDataCollectorCharacter::OnPrimaryAction()
 		bHasFired = true;
 	}
 
+	switch (TargetManagerMode)
+	{
+	case ETargetManagerMode::ReactionTime:
+		WritePrimaryClickReactionTimeToDataFile();
+		break;
+	case ETargetManagerMode::Moving:
+	case ETargetManagerMode::Static:
+	case ETargetManagerMode::LargeAngle:
+	default:
+		WritePrimaryClickStaticToDataFile();
+	}
+	OnUseItem.Broadcast();
+}
+
+void AMTDataCollectorCharacter::TurnWithMouse(const float Value)
+{
+	AddControllerYawInput(Value * MouseSensitivity);
+}
+
+void AMTDataCollectorCharacter::LookUpWithMouse(const float Value)
+{
+	AddControllerPitchInput(Value * MouseSensitivity);
+}
+
+FRotator AMTDataCollectorCharacter::GetPlayerRotation() const
+{
+	return GetFirstPersonCameraComponent()->GetForwardVector().Rotation();
+}
+
+void AMTDataCollectorCharacter::PollPlayerAngle() const
+{
+	switch (TargetManagerMode)
+	{
+	case ETargetManagerMode::ReactionTime:
+		break;
+	case ETargetManagerMode::Tracking:
+		WritePollAngleTrackingToDataFile();
+		break;
+	case ETargetManagerMode::Moving:
+	case ETargetManagerMode::Static:
+	case ETargetManagerMode::LargeAngle:
+	default:
+		WritePollAngleStaticToDataFile();
+		break;
+	}
+}
+
+ATarget* AMTDataCollectorCharacter::GetCurrentTarget() const
+{
+	AActor* CurrentTarget = UGameplayStatics::GetActorOfClass(GetWorld(), ATarget::StaticClass());
+	return IsValid(CurrentTarget) ? Cast<ATarget>(CurrentTarget) : nullptr;
+}
+
+bool AMTDataCollectorCharacter::WriteStringToFile(const FString& Text, const FString& File) const
+{
+	return FFileHelper::SaveStringToFile(Text, *(WritePath + File), FFileHelper::EEncodingOptions::AutoDetect,
+	                                     &IFileManager::Get(), FILEWRITE_Append);
+}
+
+void AMTDataCollectorCharacter::WritePrimaryClickStaticToDataFile() const
+{
 	FString OutString;
 	const auto CurrentTime = FDateTime::Now() - StartTime;
 	OutString += FString::SanitizeFloat(CurrentTime.GetTotalMilliseconds()) + ",";
 
 	const FVector PlayerLocation = GetFirstPersonCameraComponent()->GetComponentLocation();
-	const FVector ForwardVector = GetFirstPersonCameraComponent()->GetForwardVector();
-	const FRotator PlayerRotation = ForwardVector.Rotation();
+	const FRotator PlayerRotation = GetPlayerRotation();
 	OutString += FString::SanitizeFloat(PlayerRotation.Pitch) + "," + FString::SanitizeFloat(PlayerRotation.Yaw) + ",";
 
 	if (const ATarget* RefTarget = GetCurrentTarget(); IsValid(RefTarget))
@@ -72,6 +164,7 @@ void AMTDataCollectorCharacter::OnPrimaryAction()
 	OutString += "TRUE,";
 
 	FHitResult* HitResult = new FHitResult();
+	const FVector ForwardVector = GetFirstPersonCameraComponent()->GetForwardVector();
 	const FVector EndTrace = ForwardVector * 10000.f + PlayerLocation;
 	if (const FCollisionQueryParams* TraceParams = new FCollisionQueryParams(); GetWorld()->
 		LineTraceSingleByChannel(*HitResult, PlayerLocation, EndTrace, ECC_Visibility, *TraceParams))
@@ -84,27 +177,59 @@ void AMTDataCollectorCharacter::OnPrimaryAction()
 		OutString += "FALSE\n";
 	}
 
-	// ReSharper disable once CppExpressionWithoutSideEffects
-	WriteStringToDataFile(OutString, FileName);
-
-	OnUseItem.Broadcast();
+	if (!WriteStringToFile(OutString, FileName))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Data write failed in WritePrimaryClickStaticToDataFile."));
+	}
 }
 
-void AMTDataCollectorCharacter::TurnWithMouse(const float Value)
+void AMTDataCollectorCharacter::WritePrimaryClickReactionTimeToDataFile() const
 {
-	AddControllerYawInput(Value * MouseSensitivity);
+	FString OutString;
+
+	const FTimespan CurrentTime = FDateTime::Now() - StartTime;
+	OutString += FString::SanitizeFloat(CurrentTime.GetTotalMilliseconds()) + ",";
+
+	OutString += "FALSE,TRUE\n";
+
+	if (!WriteStringToFile(OutString, FileName))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Data write failed in WritePrimaryClickReactionTimeToDataFile."));
+	}
 }
 
-void AMTDataCollectorCharacter::LookUpWithMouse(const float Value)
+void AMTDataCollectorCharacter::WritePollAngleStaticToDataFile() const
 {
-	AddControllerPitchInput(Value * MouseSensitivity);
+	FString OutString;
+
+	const FTimespan CurrentTime = FDateTime::Now() - StartTime;
+	OutString += FString::SanitizeFloat(CurrentTime.GetTotalMilliseconds()) + ",";
+
+	const FRotator PlayerRotation = GetPlayerRotation();
+	OutString += FString::SanitizeFloat(PlayerRotation.Pitch) + "," + FString::SanitizeFloat(PlayerRotation.Yaw) + ",";
+
+	if (const ATarget* RefTarget = GetCurrentTarget(); IsValid(RefTarget))
+	{
+		const FVector RefTargetPos = RefTarget->GetActorLocation();
+		const FVector VectorToRefTarget = RefTargetPos - GetFirstPersonCameraComponent()->GetComponentLocation();
+		const FRotator RefTargetAngle = VectorToRefTarget.Rotation();
+		OutString += FString::SanitizeFloat(RefTargetAngle.Pitch) + "," +
+			FString::SanitizeFloat(RefTargetAngle.Yaw) + ",";
+	}
+
+	OutString += "\n";
+
+	if (!WriteStringToFile(OutString, FileName))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Data write failed in WritePollAngleStaticToDataFile."));
+	}
 }
 
-void AMTDataCollectorCharacter::PollPlayerAngle() const
+void AMTDataCollectorCharacter::WritePollAngleTrackingToDataFile() const
 {
 	FString OutString;
 	const auto CurrentTime = FDateTime::Now() - StartTime;
-	const FRotator PlayerRotation = GetFirstPersonCameraComponent()->GetForwardVector().Rotation();
+	const FRotator PlayerRotation = GetPlayerRotation();
 
 	OutString += FString::SanitizeFloat(CurrentTime.GetTotalMilliseconds()) + ",";
 	OutString += FString::SanitizeFloat(PlayerRotation.Pitch) + "," + FString::SanitizeFloat(PlayerRotation.Yaw) + ",";
@@ -122,20 +247,87 @@ void AMTDataCollectorCharacter::PollPlayerAngle() const
 		OutString += "NA,NA,";
 	}
 
-	OutString += "FALSE,NA\n";
+	OutString += "FALSE,";
 
-	// ReSharper disable once CppExpressionWithoutSideEffects
-	WriteStringToDataFile(OutString, FileName);
+	FHitResult* HitResult = new FHitResult();
+	const FVector ForwardVector = GetFirstPersonCameraComponent()->GetForwardVector();
+	const FVector PlayerLocation = GetFirstPersonCameraComponent()->GetComponentLocation();
+	const FVector EndTrace = ForwardVector * 10000.f + PlayerLocation;
+	if (const FCollisionQueryParams* TraceParams = new FCollisionQueryParams(); GetWorld()->
+		LineTraceSingleByChannel(*HitResult, PlayerLocation, EndTrace, ECC_Visibility, *TraceParams))
+	{
+		const ATarget* Target = Cast<ATarget>(HitResult->GetActor());
+		OutString += IsValid(Target) ? "TRUE\n" : "FALSE\n";
+	}
+	else
+	{
+		OutString += "FALSE\n";
+	}
+
+	if (!WriteStringToFile(OutString, FileName))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Data write failed in WritePollAngleTrackingToDataFile."));
+	}
 }
 
-ATarget* AMTDataCollectorCharacter::GetCurrentTarget() const
+// ReSharper disable once CppMemberFunctionMayBeConst
+void AMTDataCollectorCharacter::WriteTrackingTargetSpawnedToDataFile()
 {
-	AActor* CurrentTarget = UGameplayStatics::GetActorOfClass(GetWorld(), ATarget::StaticClass());
-	return IsValid(CurrentTarget) ? Cast<ATarget>(CurrentTarget) : nullptr;
+	FString OutString;
+	const auto CurrentTime = FDateTime::Now() - StartTime;
+	const FRotator PlayerRotation = GetPlayerRotation();
+
+	OutString += FString::SanitizeFloat(CurrentTime.GetTotalMilliseconds()) + ",";
+	OutString += FString::SanitizeFloat(PlayerRotation.Pitch) + "," + FString::SanitizeFloat(PlayerRotation.Yaw) + ",";
+
+	if (const ATarget* RefTarget = GetCurrentTarget(); IsValid(RefTarget))
+	{
+		const FVector RefTargetPos = RefTarget->GetActorLocation();
+		const FVector VectorToRefTarget = RefTargetPos - GetFirstPersonCameraComponent()->GetComponentLocation();
+		const FRotator RefTargetAngle = VectorToRefTarget.Rotation();
+		OutString += FString::SanitizeFloat(RefTargetAngle.Pitch) + "," +
+			FString::SanitizeFloat(RefTargetAngle.Yaw) + ",";
+	}
+	else
+	{
+		OutString += "NA,NA,";
+	}
+
+	OutString += "TRUE,";
+
+	FHitResult* HitResult = new FHitResult();
+	const FVector ForwardVector = GetFirstPersonCameraComponent()->GetForwardVector();
+	const FVector PlayerLocation = GetFirstPersonCameraComponent()->GetComponentLocation();
+	const FVector EndTrace = ForwardVector * 10000.f + PlayerLocation;
+	if (const FCollisionQueryParams* TraceParams = new FCollisionQueryParams(); GetWorld()->
+		LineTraceSingleByChannel(*HitResult, PlayerLocation, EndTrace, ECC_Visibility, *TraceParams))
+	{
+		const ATarget* Target = Cast<ATarget>(HitResult->GetActor());
+		OutString += IsValid(Target) ? "TRUE\n" : "FALSE\n";
+	}
+	else
+	{
+		OutString += "FALSE\n";
+	}
+
+	if (!WriteStringToFile(OutString, FileName))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Data write failed in WritePollAngleTrackingToDataFile."));
+	}
 }
 
-bool AMTDataCollectorCharacter::WriteStringToDataFile(const FString& Text, const FString& File) const
+// ReSharper disable once CppMemberFunctionMayBeConst
+void AMTDataCollectorCharacter::WriteReactionTimeTargetSpawnedToDataFile()
 {
-	return FFileHelper::SaveStringToFile(Text, *(WritePath + File), FFileHelper::EEncodingOptions::AutoDetect,
-	                                     &IFileManager::Get(), FILEWRITE_Append);
+	FString OutString;
+
+	const FTimespan CurrentTime = FDateTime::Now() - StartTime;
+	OutString += FString::SanitizeFloat(CurrentTime.GetTotalMilliseconds()) + ",";
+
+	OutString += "TRUE,FALSE\n";
+
+	if (!WriteStringToFile(OutString, FileName))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Data write failed in WritePrimaryClickReactionTimeToDataFile."));
+	}
 }

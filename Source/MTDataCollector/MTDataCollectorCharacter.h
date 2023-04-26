@@ -31,6 +31,27 @@ class AMTDataCollectorCharacter : public ACharacter
 public:
 	AMTDataCollectorCharacter();
 
+	UFUNCTION()
+	bool WriteStringToFile(const FString& Text, const FString& File) const;
+
+	UFUNCTION()
+	void WritePrimaryClickStaticToDataFile() const;
+
+	UFUNCTION()
+	void WritePrimaryClickReactionTimeToDataFile() const;
+
+	UFUNCTION()
+	void WritePollAngleStaticToDataFile() const;
+
+	UFUNCTION()
+	void WritePollAngleTrackingToDataFile() const;
+
+	UFUNCTION()
+	void WriteTrackingTargetSpawnedToDataFile();
+
+	UFUNCTION()
+	void WriteReactionTimeTargetSpawnedToDataFile();
+
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -39,7 +60,7 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Interaction")
 	FOnUseItem OnUseItem;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly)
 	ETargetManagerMode TargetManagerMode;
 
 protected:
@@ -51,10 +72,9 @@ protected:
 	void LookUpWithMouse(float Value);
 
 private:
+	FRotator GetPlayerRotation() const;
 	void PollPlayerAngle() const;
 	ATarget* GetCurrentTarget() const;
-
-	bool WriteStringToDataFile(const FString& Text, const FString& File) const;
 
 	bool bHasFired;
 	FString WritePath;
