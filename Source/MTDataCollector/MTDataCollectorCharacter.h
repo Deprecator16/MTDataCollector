@@ -52,6 +52,9 @@ public:
 	UFUNCTION()
 	void WriteReactionTimeTargetSpawnedToDataFile();
 
+	UFUNCTION(BlueprintCallable)
+	ATarget* GetCurrentTarget() const;
+
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -74,7 +77,6 @@ protected:
 private:
 	FRotator GetPlayerRotation() const;
 	void PollPlayerAngle() const;
-	ATarget* GetCurrentTarget() const;
 
 	bool bHasFired;
 	FString WritePath;

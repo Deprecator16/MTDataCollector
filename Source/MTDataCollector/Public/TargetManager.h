@@ -6,6 +6,7 @@
 
 class AMTDataCollectorCharacter;
 class ATarget;
+class USoundCue;
 
 UENUM(BlueprintType)
 enum class ETargetManagerMode : uint8
@@ -49,6 +50,8 @@ public:
 	UFUNCTION()
 	void StartReactionTimeMode();
 
+	void PlaySpawnSound(const FVector& Offset) const;
+
 	FVector GenRandomPointInSpawnBox() const;
 
 	UPROPERTY(EditAnywhere)
@@ -62,6 +65,9 @@ public:
 
 	UPROPERTY()
 	ATarget* CurrentTarget;
+
+	UPROPERTY(EditAnywhere)
+	USoundCue* TargetSpawnSound;
 
 	UPROPERTY(EditAnywhere)
 	double MaxX;
@@ -98,4 +104,5 @@ private:
 	FTimerHandle ReactionTimeHandler;
 	FVector LerpStart;
 	FVector LerpEnd;
+	bool bNextIsRandLargeAngle;
 };

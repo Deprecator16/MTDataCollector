@@ -2,14 +2,21 @@
 
 #include "Target.h"
 #include "../MTDataCollectorCharacter.h"
+#include "Sound/SoundCue.h"
 #include "Kismet/GameplayStatics.h"
 
 ATargetManager::ATargetManager() :
 	TargetMode(ETargetManagerMode::Moving), MaxX(1800.0), MaxY(0.0), MaxZ(700.0), MaxReaction(7.0), MinReaction(1.0),
-	TargetScale(0.25), DefaultMovementSpeed(50.0), CurrentMovementSpeed(0.0)
+	TargetScale(0.25), DefaultMovementSpeed(50.0), CurrentMovementSpeed(0.0), bNextIsRandLargeAngle(true)
 {
 	PrimaryActorTick.bCanEverTick = true;
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("DefaultSceneRoot"));
+
+	//if (static ConstructorHelpers::FObjectFinder<USoundCue> HitSoundAsset(TEXT("/Game/Effects/pong-paddle.pong-paddle"))
+	//	; HitSoundAsset.Succeeded())
+	//{
+	//	TargetSpawnSound = HitSoundAsset.Object;
+	//}
 }
 
 bool ATargetManager::IsThisManagerValid() const
@@ -61,6 +68,7 @@ void ATargetManager::SpawnRandTargetOnSphere()
 	FVector SpherePoint = FMath::VRand();
 	SpherePoint *= {MaxX, MaxY, MaxZ};
 	SpawnStaticTarget(SpherePoint);
+	PlaySpawnSound(SpherePoint);
 }
 
 void ATargetManager::SpawnNewTarget()
@@ -76,7 +84,15 @@ void ATargetManager::SpawnNewTarget()
 		SpawnStaticTarget(GenRandomPointInSpawnBox());
 		break;
 	case ETargetManagerMode::LargeAngle:
-		SpawnRandTargetOnSphere();
+		if (bNextIsRandLargeAngle)
+		{
+			SpawnRandTargetOnSphere();
+		}
+		else
+		{
+			SpawnStaticTarget(FVector(1, 0, 0) * MaxX);
+		}
+		bNextIsRandLargeAngle = !bNextIsRandLargeAngle;
 		break;
 	case ETargetManagerMode::Tracking:
 		SpawnMovingTarget(GenRandomPointInSpawnBox(), GenRandomPointInSpawnBox(), FMath::FRandRange(0.0, 1.0));
@@ -121,6 +137,14 @@ void ATargetManager::StartReactionTimeMode()
 {
 	Character->OnUseItem.RemoveDynamic(this, &ATargetManager::StartTrackingMode);
 	SpawnNewTarget();
+}
+
+void ATargetManager::PlaySpawnSound(const FVector& Offset) const
+{
+	if (TargetSpawnSound != nullptr)
+	{
+		UGameplayStatics::SpawnSoundAtLocation(this, TargetSpawnSound, GetActorLocation() + Offset);
+	}
 }
 
 FVector ATargetManager::GenRandomPointInSpawnBox() const
