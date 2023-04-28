@@ -11,12 +11,6 @@ ATargetManager::ATargetManager() :
 {
 	PrimaryActorTick.bCanEverTick = true;
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("DefaultSceneRoot"));
-
-	//if (static ConstructorHelpers::FObjectFinder<USoundCue> HitSoundAsset(TEXT("/Game/Effects/pong-paddle.pong-paddle"))
-	//	; HitSoundAsset.Succeeded())
-	//{
-	//	TargetSpawnSound = HitSoundAsset.Object;
-	//}
 }
 
 bool ATargetManager::IsThisManagerValid() const
