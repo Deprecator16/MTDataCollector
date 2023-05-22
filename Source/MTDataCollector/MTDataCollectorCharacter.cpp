@@ -9,8 +9,8 @@
 #include "Target.h"
 
 AMTDataCollectorCharacter::AMTDataCollectorCharacter() :
-	MouseSensitivity(1.0f), bHasFired(false),
-	WritePath(FPaths::ProjectConfigDir() + TEXT("/DATA/Moving/")),
+	bHasFired(false),
+	WritePath(FPaths::ProjectDir() + TEXT("/DATA/Moving/")),
 	FileName(TEXT("MOVING") + FDateTime::Now().ToString() + TEXT(".csv")), AnglePollRateHertz(60.0)
 {
 	GetCapsuleComponent()->InitCapsuleSize(55.f, 96.0f);
@@ -29,33 +29,33 @@ void AMTDataCollectorCharacter::BeginPlay()
 	switch (TargetManagerMode)
 	{
 	case ETargetManagerMode::Static:
-		WritePath = FPaths::ProjectConfigDir() + TEXT("/DATA/Static/");
+		WritePath = FPaths::ProjectDir() + TEXT("/DATA/Static/");
 		FileName = TEXT("STATIC") + FDateTime::Now().ToString() + TEXT(".csv");
 		WriteStringToFile(
 			TEXT("Timestamp(ms),PlayerRotX,PlayerRotY,TargetRotX,TargetRotY,Fired,HitTarget\n"), FileName);
 		break;
 	case ETargetManagerMode::LargeAngle:
-		WritePath = FPaths::ProjectConfigDir() + TEXT("/DATA/LargeAngles/");
+		WritePath = FPaths::ProjectDir() + TEXT("/DATA/LargeAngles/");
 		FileName = TEXT("LARGEANGLE") + FDateTime::Now().ToString() + TEXT(".csv");
 		WriteStringToFile(
 			TEXT("Timestamp(ms),PlayerRotX,PlayerRotY,TargetRotX,TargetRotY,Fired,HitTarget\n"), FileName);
 		break;
 	case ETargetManagerMode::Tracking:
-		WritePath = FPaths::ProjectConfigDir() + TEXT("/DATA/Tracking/");
+		WritePath = FPaths::ProjectDir() + TEXT("/DATA/Tracking/");
 		FileName = TEXT("TRACKING") + FDateTime::Now().ToString() + TEXT(".csv");
 		WriteStringToFile(
 			TEXT("Timestamp(ms),PlayerRotX,PlayerRotY,TargetRotX,TargetRotY,JustSpawned,OnTarget\n"), FileName);
 		break;
 	case ETargetManagerMode::ReactionTime:
 		bHasFired = true;
-		WritePath = FPaths::ProjectConfigDir() + TEXT("/DATA/ReactionTime/");
+		WritePath = FPaths::ProjectDir() + TEXT("/DATA/ReactionTime/");
 		FileName = TEXT("REACTIONTIME") + FDateTime::Now().ToString() + TEXT(".csv");
 		WriteStringToFile(
 			TEXT("Timestamp(ms),Spawned, Clicked\n"), FileName);
 		break;
 	case ETargetManagerMode::Moving:
 	default:
-		WritePath = FPaths::ProjectConfigDir() + TEXT("/DATA/Moving/");
+		WritePath = FPaths::ProjectDir() + TEXT("/DATA/Moving/");
 		FileName = TEXT("MOVING") + FDateTime::Now().ToString() + TEXT(".csv");
 		WriteStringToFile(
 			TEXT("Timestamp(ms),PlayerRotX,PlayerRotY,TargetRotX,TargetRotY,Fired,HitTarget\n"), FileName);
@@ -330,4 +330,9 @@ void AMTDataCollectorCharacter::WriteReactionTimeTargetSpawnedToDataFile()
 	{
 		UE_LOG(LogTemp, Error, TEXT("Data write failed in WritePrimaryClickReactionTimeToDataFile."));
 	}
+}
+
+void AMTDataCollectorCharacter::DoConfigSave()
+{
+	SaveConfig();
 }

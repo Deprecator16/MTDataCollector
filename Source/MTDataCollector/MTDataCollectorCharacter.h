@@ -53,11 +53,14 @@ public:
 	void WriteReactionTimeTargetSpawnedToDataFile();
 
 	UFUNCTION(BlueprintCallable)
+	void DoConfigSave();
+
+	UFUNCTION(BlueprintCallable)
 	ATarget* GetCurrentTarget() const;
 
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite)
 	float MouseSensitivity;
 
 	UPROPERTY(BlueprintAssignable, Category = "Interaction")
