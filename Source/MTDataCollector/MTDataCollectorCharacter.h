@@ -2,7 +2,6 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "SharedMemory.h"
 
 #include "MTDataCollectorCharacter.generated.h"
 
@@ -15,8 +14,6 @@ class USoundBase;
 class UMTNetwork;
 class ATarget;
 
-#define USE_SHARED_NNI_MEMORY 0
-
 // Declaration of delegate to be called when Primary Action triggered.
 // Declared dynamic so it can be accessed in Blueprints
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUseItem);
@@ -27,9 +24,9 @@ class AMTDataCollectorCharacter : public ACharacter
 	GENERATED_BODY()
 
 	UPROPERTY(VisibleDefaultsOnly, Category=Mesh)
-		USkeletalMeshComponent* Mesh1P;
+	USkeletalMeshComponent* Mesh1P;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
-		UCameraComponent* FirstPersonCameraComponent;
+	UCameraComponent* FirstPersonCameraComponent;
 
 public:
 	AMTDataCollectorCharacter();
@@ -38,9 +35,9 @@ public:
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		float MouseSensitivity;
+	float MouseSensitivity;
 	UPROPERTY(BlueprintAssignable, Category = "Interaction")
-		FOnUseItem OnUseItem;
+	FOnUseItem OnUseItem;
 
 	const int Points_Per_Trajectory = 64;
 
@@ -60,7 +57,8 @@ private:
 	ATarget* GetCurrentTarget() const;
 
 	UPROPERTY()
-		UMTNetwork* Network;
+	UMTNetwork* Network;
+
 	bool bUsingNeuralNetwork;
 	bool NeuralNetworkIsReady;
 	bool bHasFired;
@@ -72,9 +70,4 @@ private:
 	FTimerHandle MousePollingHandler;
 	FTimerHandle NeuralNetHandler;
 	FDateTime StartTime;
-
-#if USE_SHARED_NNI_MEMORY
-	TUniquePtr<FSharedMemory> SharedTrajectoryBlock;
-#endif
 };
-
