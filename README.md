@@ -13,7 +13,7 @@ The game contains the following modes:
 ## How to play
 To play, download the latest release and extract the folder anywhere. To play a specific gamemode, run the file called "Start {gamemode name}.bat". This will start the game in that gamemode. Running the "MTDataCollector.exe" file will only run the game in Moving mode.To use the data collector, download this release and extract the folder anywhere. To play a specific gamemode, run the file called "Start {gamemode name}.bat". This will start the game in that gamemode. Running the "MTDataCollector.exe" file will only run the game in Moving mode.
 
-The "escape" key will bring up a menu where you can edit your mouse sensitivity. Do this *before* left clicking to start the game. Once you're ready, left-click to start and targets will appear. Every game goes for 5 minutes. Once the 5 minutes are over, the game will automatically close. 
+The "escape" key will bring up a menu where you can edit your mouse sensitivity. Do this *before* left clicking to start the game. Once you're ready, left-click to start and targets will appear. Every game goes for 1 minute. Once the 1 minute is over, the game will automatically close. 
 
 ## Data
 All data files will be located in the "...\MTDataCollector\Config\DATA" folder. It is subdivided into folders for every mode, containing one csv file for every game played.
